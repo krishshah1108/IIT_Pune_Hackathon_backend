@@ -1,16 +1,22 @@
 """Application configuration module."""
 
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Load `.env` from repo root even when uvicorn cwd is elsewhere (fixes DEMO_MODE / secrets not applied).
+_ENV_ROOT = Path(__file__).resolve().parents[2]
+_ENV_FILES = (str(_ENV_ROOT / ".env"), ".env")
+
 
 class Settings(BaseSettings):
     """Runtime settings loaded from environment."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILES, env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = Field(default="MediReminder Backend", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
@@ -87,3 +93,14 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Return cached settings instance."""
     return Settings()
+
+
+def demo_mode_effective() -> bool:
+    """
+    True if demo prescription shortcut should run.
+    Uses cached Settings plus a raw `os.environ` check so `DEMO_MODE` still works when set only in the shell.
+    """
+    if get_settings().demo_mode:
+        return True
+    raw = str(os.environ.get("DEMO_MODE", "")).strip().lower()
+    return raw in ("on", "1", "true", "yes", "onn")

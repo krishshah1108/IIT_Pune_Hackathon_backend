@@ -6,8 +6,8 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.dependencies import get_orchestrator, get_prescription_service, get_token_payload
-from app.core.config import get_settings
-from app.core.demo_prescriptions import demo_prescription_id_for_user
+from app.core.config import demo_mode_effective, get_settings
+from app.core.demo_prescriptions import demo_prescription_id_for_claims
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.orchestrator.engine import OrchestratorEngine
 from app.orchestrator.events import Event
@@ -68,7 +68,13 @@ async def upload_prescription(
 ) -> PrescriptionUploadResponse:
     """Upload image, run vision + literacy + food in-process, return draft analysis (no medicines until confirm)."""
     user_id = str(claims["sub"]).strip()
-    logger.info("prescription.upload.received user_id=%s filename=%s", user_id, image.filename or "unknown")
+    email = str(claims.get("email") or "").strip().lower()
+    logger.info(
+        "prescription.upload.received user_id=%s email=%s filename=%s",
+        user_id,
+        email or "-",
+        image.filename or "unknown",
+    )
     content_type = (image.content_type or "").split(";")[0].strip().lower()
     if content_type not in _ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -82,7 +88,8 @@ async def upload_prescription(
     logger.info("prescription.upload.file_read user_id=%s bytes=%s content_type=%s", user_id, len(raw), content_type)
 
     settings = get_settings()
-    demo_prx = demo_prescription_id_for_user(user_id) if settings.demo_mode else None
+    demo_on = demo_mode_effective()
+    demo_prx = demo_prescription_id_for_claims(user_id, email or None) if demo_on else None
 
     if demo_prx:
         try:
@@ -91,8 +98,10 @@ async def upload_prescription(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         # `user_id` here is JWT `sub`. It must match `doc["user_id"]` or the wrong Bearer token was used.
         logger.info(
-            "prescription.upload.demo_snapshot jwt_sub=%s mapped_prx=%s returned_prescription_id=%s doc_user_id=%s",
+            "prescription.upload.demo_snapshot demo_mode_effective=%s jwt_sub=%s email=%s mapped_prx=%s returned_id=%s doc_user_id=%s",
+            demo_on,
             user_id,
+            email or "-",
             demo_prx,
             doc.get("_id"),
             doc.get("user_id"),
