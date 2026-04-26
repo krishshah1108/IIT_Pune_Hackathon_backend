@@ -72,31 +72,3 @@ class PrescriptionRepository(BaseRepository):
         """Hard-delete a prescription row if owned by user."""
         result = await self.collection.delete_one({"_id": prescription_id, "user_id": user_id})
         return result.deleted_count == 1
-
-    async def apply_demo_upload_draft(
-        self,
-        prescription_id: str,
-        user_id: str,
-        *,
-        image_url: str,
-        cloudinary_public_id: str,
-        content_hash: str,
-        language: str,
-        ai_output: dict[str, Any],
-    ) -> bool:
-        """Set prescription to awaiting_confirmation with canned AI (demo mode)."""
-        result = await self.collection.update_one(
-            {"_id": prescription_id, "user_id": user_id, "deleted_at": None},
-            {
-                "$set": {
-                    "status": "awaiting_confirmation",
-                    "image_url": image_url,
-                    "cloudinary_public_id": cloudinary_public_id,
-                    "content_hash": content_hash,
-                    "language": language,
-                    "ai_output": ai_output,
-                    "updated_at": datetime.now(timezone.utc),
-                }
-            },
-        )
-        return result.matched_count == 1

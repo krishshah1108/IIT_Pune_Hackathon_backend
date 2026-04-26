@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from app.api.dependencies import get_orchestrator, get_prescription_service, get_token_payload
 from app.core.config import get_settings
-from app.core.demo_prescriptions import demo_prescription_id_for_email
+from app.core.demo_prescriptions import demo_prescription_id_for_user
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.orchestrator.engine import OrchestratorEngine
 from app.orchestrator.events import Event
@@ -67,9 +67,8 @@ async def upload_prescription(
     orchestrator: OrchestratorEngine = Depends(get_orchestrator),
 ) -> PrescriptionUploadResponse:
     """Upload image, run vision + literacy + food in-process, return draft analysis (no medicines until confirm)."""
-    user_id = str(claims["sub"])
-    email = str(claims.get("email") or "").strip().lower()
-    logger.info("prescription.upload.received user_id=%s email=%s filename=%s", user_id, email or "-", image.filename or "unknown")
+    user_id = str(claims["sub"]).strip()
+    logger.info("prescription.upload.received user_id=%s filename=%s", user_id, image.filename or "unknown")
     content_type = (image.content_type or "").split(";")[0].strip().lower()
     if content_type not in _ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -83,32 +82,21 @@ async def upload_prescription(
     logger.info("prescription.upload.file_read user_id=%s bytes=%s content_type=%s", user_id, len(raw), content_type)
 
     settings = get_settings()
-    demo_prx = demo_prescription_id_for_email(email) if settings.demo_mode and email else None
+    demo_prx = demo_prescription_id_for_user(user_id) if settings.demo_mode else None
 
     if demo_prx:
         try:
-            prescription = await service.apply_demo_prescription_upload(
-                user_id=user_id,
-                demo_prescription_id=demo_prx,
-                file_bytes=raw,
-                content_type=content_type,
-                original_filename=image.filename,
-                language=language,
-                demo_fixture_email=email,
-            )
+            doc = await service.get_demo_prescription_upload_doc(user_id=user_id, demo_prescription_id=demo_prx)
         except NotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        # `user_id` here is JWT `sub`. It must match `doc["user_id"]` or the wrong Bearer token was used.
         logger.info(
-            "prescription.upload.demo_shortcut user_id=%s prescription_id=%s image_url=%s",
+            "prescription.upload.demo_snapshot jwt_sub=%s mapped_prx=%s returned_prescription_id=%s doc_user_id=%s",
             user_id,
-            prescription["_id"],
-            prescription.get("image_url"),
+            demo_prx,
+            doc.get("_id"),
+            doc.get("user_id"),
         )
-        doc = await service.get_owned_prescription(user_id, prescription["_id"])
-        if not doc:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Prescription missing after processing")
         return _upload_response_from_doc(doc, str(uuid4()))
 
     try:

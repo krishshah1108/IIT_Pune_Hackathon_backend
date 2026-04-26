@@ -4,7 +4,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.demo_prescriptions import build_demo_ai_output_for_email
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.repositories.dose_log_repository import DoseLogRepository
 from app.repositories.medicine_repository import MedicineRepository
@@ -66,85 +65,27 @@ class PrescriptionService:
             cloudinary_public_id=upload_meta["public_id"],
         )
 
-    async def apply_demo_prescription_upload(
-        self,
-        user_id: str,
-        demo_prescription_id: str,
-        file_bytes: bytes,
-        content_type: str,
-        original_filename: str | None,
-        language: str,
-        *,
-        demo_fixture_email: str,
-    ) -> dict[str, Any]:
+    async def get_demo_prescription_upload_doc(self, user_id: str, demo_prescription_id: str) -> dict[str, Any]:
         """
-        Demo mode: reuse a fixed prx_* row, upload a new image to Cloudinary, attach canned AI draft.
-        Skips Gemini; confirm/update flows use the same prescription id as production.
-        `demo_fixture_email` must match the JWT email (normalized) so canned analysis aligns with the map.
+        Demo mode: return the existing prx_* document for this user unchanged.
+        No Cloudinary, no new row, no Gemini, no canned analysis — whatever is already in Mongo.
         """
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             raise NotFoundError("User not found")
-
-        # Match normal uploads (`create_upload_from_file`): prescriptions are keyed by `users._id`.
         owner_id = str(user["_id"])
-
-        self.cloudinary.validate_content_type(content_type)
-        image_hash = hash_bytes(file_bytes)
-
         doc = await self.prescription_repo.get_owned(demo_prescription_id, owner_id)
         if not doc:
             raise NotFoundError(
-                "Demo prescription not found for this account. Insert the prx_* document for this user in MongoDB."
+                "Demo prescription not found for this account. Ensure the prx_* row exists and user_id matches."
             )
-
-        safe_name = (original_filename or "prescription").replace("\\", "/").split("/")[-1][:120]
-        upload_meta = await self.cloudinary.upload_prescription_image(file_bytes, safe_name)
-        new_public_id = str(upload_meta["public_id"])
-        new_url = str(upload_meta["secure_url"])
-
-        old_public_id = str(doc.get("cloudinary_public_id") or "").strip()
-        if old_public_id and old_public_id != new_public_id:
-            try:
-                await self.cloudinary.delete_prescription_image(old_public_id)
-            except Exception as exc:
-                logger.warning(
-                    "prescription.demo.cloudinary_delete_failed prescription_id=%s user_id=%s error=%s",
-                    demo_prescription_id,
-                    owner_id,
-                    str(exc),
-                )
-
-        if doc.get("status") == "confirmed":
-            med_rows = await self.medicine_repo.list_by_prescription(demo_prescription_id)
-            med_ids = [str(m["_id"]) for m in med_rows]
-            if med_ids:
-                await self.dose_repo.hard_delete_for_medicines(owner_id, med_ids)
-            await self.medicine_repo.hard_delete_for_prescription(demo_prescription_id, owner_id)
-
-        ai_out = build_demo_ai_output_for_email(language, demo_fixture_email)
-        ok = await self.prescription_repo.apply_demo_upload_draft(
-            demo_prescription_id,
-            owner_id,
-            image_url=new_url,
-            cloudinary_public_id=new_public_id,
-            content_hash=image_hash,
-            language=language,
-            ai_output=ai_out,
-        )
-        if not ok:
-            raise NotFoundError("Could not update demo prescription (wrong owner or missing row).")
-
-        updated = await self.prescription_repo.get_owned(demo_prescription_id, owner_id)
-        if not updated:
-            raise NotFoundError("Prescription missing after demo update")
         logger.info(
-            "prescription.demo_upload_done user_id=%s prescription_id=%s bytes=%s",
+            "prescription.demo_upload_snapshot user_id=%s prescription_id=%s status=%s",
             owner_id,
             demo_prescription_id,
-            len(file_bytes),
+            doc.get("status"),
         )
-        return updated
+        return doc
 
     async def persist_medicines(self, prescription_id: str, user_id: str, medicines: list[dict]) -> list[str]:
         """Normalize and persist medicine entries."""

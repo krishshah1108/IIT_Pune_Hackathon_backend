@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     app_host: str = Field(default="0.0.0.0", alias="APP_HOST")
     app_port: int = Field(default=8000, alias="APP_PORT")
     app_log_level: str = Field(default="INFO", alias="APP_LOG_LEVEL")
-    # When true, mapped demo emails skip Gemini on prescription upload (see `app.core.demo_prescriptions`).
+    # When true, mapped JWT `sub` users skip Gemini/Cloudinary on upload and get an existing prx_* doc (see `demo_prescriptions`).
     demo_mode: bool = Field(default=False, alias="DEMO_MODE")
 
     @field_validator("demo_mode", mode="before")
