@@ -13,11 +13,13 @@ Output a single JSON object, no markdown fences, no extra text.
 Schema: {"status":"ok","items":[{"name":"string","explanation":"string"}],"confidence":0.0-1.0}
 Rules:
 - One item per medicine in the input list; match "name" to each input name.
-- Each "explanation" must answer WHY this medicine is typically prescribed: what class it is, what it does in simple terms
-  (e.g. reduces acid, relieves pain/fever, treats infection), in 2–4 short sentences.
+- Audience is elderly patients. Use very easy words and short sentences.
+- Each "explanation" must be ONLY 2-3 short lines total (max ~220 characters).
+- Explain in simple terms what it is usually for and how it helps the body.
+- Avoid medical jargon. If needed, replace jargon with common words.
 - Do NOT repeat dosage schedule, reminder times, or "take at 8 AM" style instructions — the app already shows that elsewhere.
 - Do NOT invent a diagnosis for this patient; you may say "often used for …" in general terms only.
-- End with one line: follow prescriber/pharmacist for this specific case.
+- End with a very short safety line like: "Use as doctor advised."
 - If the name is ambiguous or unknown, say what is known cautiously and lower confidence."""
 
 _LIT_USER = """Language hint for tone (BCP-47 or short code): {language}

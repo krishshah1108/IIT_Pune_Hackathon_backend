@@ -14,12 +14,14 @@ Output a single JSON object, no markdown fences, no extra text.
 Schema: {"status":"ok","items":[{"name":"string","advice":"string"}],"confidence":0.0-1.0}
 Rules:
 - One item per medicine; match "name" to input names.
-- Each "advice" must cover, in plain language:
-  (1) take with food, on an empty stomach, or either — whichever fits this drug class;
-  (2) what to avoid or separate in time: e.g. calcium/iron/dairy or antacids with thyroid medicines (e.g. levothyroxine/Thyronorm:
-  not with tea/coffee/milk; wait ~30–60 min after these before the dose, or as local guidance says);
-  (3) vitamin K–rich foods (e.g. leafy greens like palak) and warfarin: keep intake consistent, do not suddenly change greens — never give a specific dose change;
-  (4) alcohol or grapefruit only if class-relevant, otherwise say "ask if unsure".
+- Audience is elderly patients. Keep words very simple and easy to read.
+- Each "advice" must be ONLY 2-3 short lines total (max ~260 characters).
+- Format each advice with clear labels:
+  Line 1 starts with: "Eat:"
+  Line 2 starts with: "Avoid:"
+  Optional line 3 starts with: "Note:"
+- Include what to eat/okay and what to avoid/separate in time.
+- Mention alcohol/grapefruit only if relevant; otherwise keep it general and short.
 - Do NOT repeat reminder clock times or paraphrase "take at 08:00" — focus on food/drink interactions.
 - If instructions field hints at with/after food, align with that.
 - Stay conservative; say ask pharmacist/doctor when unclear."""
