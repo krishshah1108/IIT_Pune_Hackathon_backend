@@ -93,9 +93,18 @@ async def upload_prescription(
 
     if demo_prx:
         try:
-            doc = await service.get_demo_prescription_upload_doc(user_id=user_id, demo_prescription_id=demo_prx)
+            doc = await service.get_demo_prescription_upload_doc(
+                user_id=user_id,
+                demo_prescription_id=demo_prx,
+                file_bytes=raw,
+                content_type=content_type,
+                original_filename=image.filename,
+                language=language,
+            )
         except NotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         # `user_id` here is JWT `sub`. It must match `doc["user_id"]` or the wrong Bearer token was used.
         logger.info(
             "prescription.upload.demo_snapshot demo_mode_effective=%s jwt_sub=%s email=%s mapped_prx=%s returned_id=%s doc_user_id=%s",

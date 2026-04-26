@@ -72,3 +72,28 @@ class PrescriptionRepository(BaseRepository):
         """Hard-delete a prescription row if owned by user."""
         result = await self.collection.delete_one({"_id": prescription_id, "user_id": user_id})
         return result.deleted_count == 1
+
+    async def update_owned_prescription_image(
+        self,
+        prescription_id: str,
+        user_id: str,
+        *,
+        image_url: str,
+        cloudinary_public_id: str,
+        content_hash: str,
+        language: str,
+    ) -> bool:
+        """Update image metadata only (demo re-upload or similar); does not touch status or ai_output."""
+        result = await self.collection.update_one(
+            {"_id": prescription_id, "user_id": user_id, "deleted_at": None},
+            {
+                "$set": {
+                    "image_url": image_url,
+                    "cloudinary_public_id": cloudinary_public_id,
+                    "content_hash": content_hash,
+                    "language": language,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return result.matched_count == 1

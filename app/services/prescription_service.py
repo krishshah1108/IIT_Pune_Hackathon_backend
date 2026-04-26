@@ -65,27 +65,72 @@ class PrescriptionService:
             cloudinary_public_id=upload_meta["public_id"],
         )
 
-    async def get_demo_prescription_upload_doc(self, user_id: str, demo_prescription_id: str) -> dict[str, Any]:
+    async def get_demo_prescription_upload_doc(
+        self,
+        user_id: str,
+        demo_prescription_id: str,
+        file_bytes: bytes,
+        content_type: str,
+        original_filename: str | None,
+        language: str,
+    ) -> dict[str, Any]:
         """
-        Demo mode: return the existing prx_* document for this user unchanged.
-        No Cloudinary, no new row, no Gemini, no canned analysis — whatever is already in Mongo.
+        Demo mode: upload the new image to Cloudinary, persist image_url/hash/language on the fixed prx_* row,
+        then return that document (status and ai_output unchanged — no Gemini).
         """
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             raise NotFoundError("User not found")
         owner_id = str(user["_id"])
+
+        self.cloudinary.validate_content_type(content_type)
+        image_hash = hash_bytes(file_bytes)
+
         doc = await self.prescription_repo.get_owned(demo_prescription_id, owner_id)
         if not doc:
             raise NotFoundError(
                 "Demo prescription not found for this account. Ensure the prx_* row exists and user_id matches."
             )
+
+        safe_name = (original_filename or "prescription").replace("\\", "/").split("/")[-1][:120]
+        upload_meta = await self.cloudinary.upload_prescription_image(file_bytes, safe_name)
+        new_public_id = str(upload_meta["public_id"])
+        new_url = str(upload_meta["secure_url"])
+
+        old_public_id = str(doc.get("cloudinary_public_id") or "").strip()
+        if old_public_id and old_public_id != new_public_id:
+            try:
+                await self.cloudinary.delete_prescription_image(old_public_id)
+            except Exception as exc:
+                logger.warning(
+                    "prescription.demo.cloudinary_delete_failed prescription_id=%s user_id=%s error=%s",
+                    demo_prescription_id,
+                    owner_id,
+                    str(exc),
+                )
+
+        ok = await self.prescription_repo.update_owned_prescription_image(
+            demo_prescription_id,
+            owner_id,
+            image_url=new_url,
+            cloudinary_public_id=new_public_id,
+            content_hash=image_hash,
+            language=language,
+        )
+        if not ok:
+            raise NotFoundError("Could not update demo prescription image (wrong owner or missing row).")
+
+        updated = await self.prescription_repo.get_owned(demo_prescription_id, owner_id)
+        if not updated:
+            raise NotFoundError("Prescription missing after demo image update")
         logger.info(
-            "prescription.demo_upload_snapshot user_id=%s prescription_id=%s status=%s",
+            "prescription.demo_upload_image user_id=%s prescription_id=%s bytes=%s status=%s",
             owner_id,
             demo_prescription_id,
-            doc.get("status"),
+            len(file_bytes),
+            updated.get("status"),
         )
-        return doc
+        return updated
 
     async def persist_medicines(self, prescription_id: str, user_id: str, medicines: list[dict]) -> list[str]:
         """Normalize and persist medicine entries."""
