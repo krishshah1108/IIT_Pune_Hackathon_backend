@@ -46,3 +46,8 @@ class MedicineRepository(BaseRepository):
             query["prescription_id"] = prescription_id
         cursor = self.collection.find(query).sort("created_at", -1)
         return [doc async for doc in cursor]
+
+    async def hard_delete_for_prescription(self, prescription_id: str, user_id: str) -> int:
+        """Remove all medicine rows for a prescription (demo reset / admin)."""
+        result = await self.collection.delete_many({"prescription_id": prescription_id, "user_id": user_id})
+        return int(result.deleted_count)

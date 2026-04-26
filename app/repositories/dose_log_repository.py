@@ -179,3 +179,10 @@ class DoseLogRepository(BaseRepository):
         ]
         cursor = self.collection.aggregate(pipeline)
         return [doc async for doc in cursor]
+
+    async def hard_delete_for_medicines(self, user_id: str, medicine_ids: list[str]) -> int:
+        """Remove dose logs for the given medicine ids (e.g. before clearing medicines)."""
+        if not medicine_ids:
+            return 0
+        result = await self.collection.delete_many({"user_id": user_id, "medicine_id": {"$in": medicine_ids}})
+        return int(result.deleted_count)

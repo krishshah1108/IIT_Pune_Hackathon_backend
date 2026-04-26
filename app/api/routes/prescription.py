@@ -1,10 +1,13 @@
 """Prescription routes."""
 
 import logging
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.dependencies import get_orchestrator, get_prescription_service, get_token_payload
+from app.core.config import get_settings
+from app.core.demo_prescriptions import demo_prescription_id_for_user
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.orchestrator.engine import OrchestratorEngine
 from app.orchestrator.events import Event
@@ -77,6 +80,34 @@ async def upload_prescription(
     if not raw:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty image file.")
     logger.info("prescription.upload.file_read user_id=%s bytes=%s content_type=%s", user_id, len(raw), content_type)
+
+    settings = get_settings()
+    demo_prx = demo_prescription_id_for_user(user_id) if settings.demo_mode else None
+
+    if demo_prx:
+        try:
+            prescription = await service.apply_demo_prescription_upload(
+                user_id=user_id,
+                demo_prescription_id=demo_prx,
+                file_bytes=raw,
+                content_type=content_type,
+                original_filename=image.filename,
+                language=language,
+            )
+        except NotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        logger.info(
+            "prescription.upload.demo_shortcut user_id=%s prescription_id=%s image_url=%s",
+            user_id,
+            prescription["_id"],
+            prescription.get("image_url"),
+        )
+        doc = await service.get_owned_prescription(user_id, prescription["_id"])
+        if not doc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Prescription missing after processing")
+        return _upload_response_from_doc(doc, str(uuid4()))
 
     try:
         prescription = await service.create_upload_from_file(

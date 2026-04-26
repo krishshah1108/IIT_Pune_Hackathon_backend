@@ -1,7 +1,9 @@
 """Application configuration module."""
 
 from functools import lru_cache
-from pydantic import Field
+from typing import Any
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +17,18 @@ class Settings(BaseSettings):
     app_host: str = Field(default="0.0.0.0", alias="APP_HOST")
     app_port: int = Field(default=8000, alias="APP_PORT")
     app_log_level: str = Field(default="INFO", alias="APP_LOG_LEVEL")
+    # When true, mapped demo users skip Gemini on prescription upload (see `app.core.demo_prescriptions`).
+    demo_mode: bool = Field(default=False, alias="DEMO_MODE")
+
+    @field_validator("demo_mode", mode="before")
+    @classmethod
+    def parse_demo_mode(cls, v: Any) -> bool:
+        if isinstance(v, bool):
+            return v
+        if v is None or v == "":
+            return False
+        s = str(v).strip().lower()
+        return s in ("on", "1", "true", "yes", "onn")
     # Max characters of v0/Gemini raw assistant text to log; 0 = log length only (no body).
     llm_response_log_max_chars: int = Field(default=8000, alias="LLM_RESPONSE_LOG_MAX_CHARS")
 

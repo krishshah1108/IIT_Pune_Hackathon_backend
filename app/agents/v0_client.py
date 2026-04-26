@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 
 from app.core.config import get_settings
-from app.core.exceptions import RetryableAgentError
+from app.core.exceptions import RetryableAgentError, V0PaymentRequiredError
 from app.utils.json_utils import extract_json_object
 
 logger = logging.getLogger(__name__)
@@ -269,11 +269,18 @@ class V0Client:
             logger.error("v0.failed reason=remote_disconnect phase=http duration_ms=%.0f detail=%s", ms, str(exc))
             last_error = RetryableAgentError(f"v0 connection dropped: {exc}")
         except httpx.HTTPStatusError as exc:
-            last_error = exc
-            ms = (time.perf_counter() - t0) * 1000.0
             status_code = exc.response.status_code
             err_body = exc.response.text or ""
             err_json = _safe_error_summary(err_body)
+            ms = (time.perf_counter() - t0) * 1000.0
+            if status_code == 402:
+                logger.error(
+                    "v0.failed reason=payment_required phase=http status=402 duration_ms=%.0f error_summary=%s",
+                    ms,
+                    err_json,
+                )
+                raise V0PaymentRequiredError(f"v0 API payment required: {err_json}") from exc
+            last_error = exc
             logger.error(
                 "v0.failed reason=http_error phase=http status=%s duration_ms=%.0f body_preview=%s error_summary=%s",
                 status_code,

@@ -7,6 +7,7 @@ from typing import Any
 from app.agents.base import Agent
 from app.agents.gemini_vision_client import GeminiVisionClient
 from app.agents.v0_client import V0Client
+from app.core.exceptions import V0PaymentRequiredError
 from app.utils.normalization import normalize_dosage_pattern
 from app.utils.reminder_times import coerce_reminder_times_24h
 
@@ -73,9 +74,12 @@ class VisionAgent(Agent):
             normalized.append(entry)
 
         if not normalized:
+            err = source.get("error")
+            if not err:
+                err = "partial_or_empty_extraction"
             result = {
                 "status": "failed",
-                "error": "partial_or_empty_extraction",
+                "error": err,
                 "medicines": [],
                 "confidence": float(source.get("confidence", 0.0)),
                 "partial": True,
@@ -112,7 +116,17 @@ class VisionAgent(Agent):
                 raise gemini_error
             return {"status": "failed", "partial": True, "confidence": 0.0, "medicines": []}
 
-        source = await self.v0_client.extract_prescription(vision_payload)
+        try:
+            source = await self.v0_client.extract_prescription(vision_payload)
+        except V0PaymentRequiredError as exc:
+            logger.error("vision.extract.v0_payment_required: %s", exc)
+            return {
+                "status": "failed",
+                "partial": True,
+                "error": "v0_payment_required",
+                "medicines": [],
+                "confidence": 0.0,
+            }
         logger.info(
             "vision.extract.v0_used status=%s medicines=%s",
             source.get("status"),

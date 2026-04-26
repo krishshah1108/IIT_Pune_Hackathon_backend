@@ -23,3 +23,7 @@ class UnauthorizedError(AppError):
 
 class RetryableAgentError(AppError):
     """Raised for transient agent failures that can be retried."""
+
+
+class V0PaymentRequiredError(AppError):
+    """v0 API returned 402; resolve billing, credits, or plan on the v0.dev account."""
