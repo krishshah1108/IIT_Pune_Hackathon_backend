@@ -58,3 +58,13 @@ class CloudinaryService:
         if not secure_url or not public_id:
             raise RuntimeError("Cloudinary upload did not return secure_url/public_id")
         return {"secure_url": secure_url, "public_id": public_id, "bytes": len(file_bytes)}
+
+    async def delete_prescription_image(self, public_id: str) -> None:
+        """Delete uploaded image from Cloudinary (best-effort)."""
+        if not public_id:
+            return
+
+        def _destroy() -> dict[str, Any]:
+            return cloudinary.uploader.destroy(public_id, resource_type="image", invalidate=True)
+
+        await asyncio.to_thread(_destroy)

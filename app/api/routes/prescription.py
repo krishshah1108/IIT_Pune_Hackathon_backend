@@ -40,6 +40,21 @@ def _upload_response_from_doc(doc: dict, event_id: str) -> PrescriptionUploadRes
     )
 
 
+def _failed_upload_detail(doc: dict) -> str:
+    """Best-effort user-facing failure detail from AI output."""
+    ai_output = doc.get("ai_output") or {}
+    if isinstance(ai_output, dict):
+        top_error = str(ai_output.get("error") or "").strip()
+        if top_error:
+            return f"Prescription processing failed: {top_error}"
+        vision = ai_output.get("vision") or {}
+        if isinstance(vision, dict):
+            vision_error = str(vision.get("error") or "").strip()
+            if vision_error:
+                return f"Prescription processing failed: {vision_error}"
+    return "Prescription processing failed. Please re-upload a clearer image."
+
+
 @router.post("/upload", response_model=PrescriptionUploadResponse)
 async def upload_prescription(
     claims: dict = Depends(get_token_payload),
@@ -99,6 +114,10 @@ async def upload_prescription(
     doc = await service.get_owned_prescription(user_id, prescription["_id"])
     if not doc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Prescription missing after processing")
+    if doc.get("status") == "failed":
+        detail = _failed_upload_detail(doc)
+        await service.discard_failed_upload(user_id=user_id, prescription_id=prescription["_id"])
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
     return _upload_response_from_doc(doc, event.event_id)
 
 

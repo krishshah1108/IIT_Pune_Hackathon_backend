@@ -91,6 +91,27 @@ class PrescriptionService:
         """Return raw prescription row for owner (e.g. after synchronous pipeline)."""
         return await self.prescription_repo.get_owned(prescription_id, user_id)
 
+    async def discard_failed_upload(self, user_id: str, prescription_id: str) -> bool:
+        """Remove failed upload row and its Cloudinary image."""
+        doc = await self.prescription_repo.get_owned(prescription_id, user_id)
+        if not doc:
+            return False
+
+        public_id = str(doc.get("cloudinary_public_id") or "").strip()
+        if public_id:
+            try:
+                await self.cloudinary.delete_prescription_image(public_id)
+            except Exception as exc:
+                logger.warning(
+                    "prescription.discard.cloudinary_delete_failed prescription_id=%s user_id=%s error=%s",
+                    prescription_id,
+                    user_id,
+                    str(exc),
+                )
+        deleted = await self.prescription_repo.delete_owned(prescription_id, user_id)
+        logger.info("prescription.discarded_failed_upload prescription_id=%s user_id=%s deleted=%s", prescription_id, user_id, deleted)
+        return deleted
+
     async def confirm_prescription(
         self,
         user_id: str,

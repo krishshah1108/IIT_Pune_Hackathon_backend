@@ -67,3 +67,8 @@ class PrescriptionRepository(BaseRepository):
         return await self.collection.find_one(
             {"_id": prescription_id, "user_id": user_id, "deleted_at": None},
         )
+
+    async def delete_owned(self, prescription_id: str, user_id: str) -> bool:
+        """Hard-delete a prescription row if owned by user."""
+        result = await self.collection.delete_one({"_id": prescription_id, "user_id": user_id})
+        return result.deleted_count == 1
