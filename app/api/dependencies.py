@@ -13,6 +13,7 @@ from app.agents.gemini_client import GeminiTextClient
 from app.agents.gemini_vision_client import GeminiVisionClient
 from app.agents.literacy_agent import LiteracyAgent
 from app.agents.triage_agent import TriageAgent
+from app.agents.v0_client import V0Client
 from app.agents.vision_agent import VisionAgent
 from app.core.config import get_settings
 from app.core.database import get_database
@@ -137,7 +138,7 @@ def get_orchestrator(
         prescription_repo=prescription_repo,
         prescription_service=prescription_service,
         alert_service=alert_service,
-        vision_agent=VisionAgent(vision),
+        vision_agent=VisionAgent(vision, V0Client()),
         literacy_agent=LiteracyAgent(literacy),
         food_agent=FoodAgent(food),
         checkin_agent=CheckinAgent(),

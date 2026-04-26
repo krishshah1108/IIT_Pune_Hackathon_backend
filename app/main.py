@@ -15,6 +15,7 @@ from app.agents.gemini_client import GeminiTextClient
 from app.agents.gemini_vision_client import GeminiVisionClient
 from app.agents.literacy_agent import LiteracyAgent
 from app.agents.triage_agent import TriageAgent
+from app.agents.v0_client import V0Client
 from app.agents.vision_agent import VisionAgent
 from app.api.routes.auth import router as auth_router
 from app.api.routes.alerts import router as alerts_router
@@ -73,7 +74,7 @@ async def lifespan(_: FastAPI):
             CaregiverRepository(db),
             EmailClient(),
         ),
-        vision_agent=VisionAgent(vision),
+        vision_agent=VisionAgent(vision, V0Client()),
         literacy_agent=LiteracyAgent(literacy),
         food_agent=FoodAgent(food),
         checkin_agent=CheckinAgent(),
