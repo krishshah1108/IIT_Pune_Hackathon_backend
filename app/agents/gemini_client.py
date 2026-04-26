@@ -205,10 +205,15 @@ class GeminiTextClient:
 
         content = (candidates[0] or {}).get("content") or {}
         text_parts = content.get("parts") or []
+        merged_parts: list[str] = []
         for p in text_parts:
             t = str(p.get("text", "")).strip()
             if t:
-                return t
+                merged_parts.append(t)
+        if merged_parts:
+            # Gemini can split one logical answer across multiple text parts.
+            # Join all parts before JSON parsing to avoid accidental truncation.
+            return "\n".join(merged_parts)
 
         ms = (time.perf_counter() - t0) * 1000.0
         logger.error("gemini.failed reason=empty_text duration_ms=%.0f", ms)
