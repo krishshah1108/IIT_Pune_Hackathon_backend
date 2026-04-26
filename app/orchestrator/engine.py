@@ -106,6 +106,41 @@ class OrchestratorEngine:
                 vision.get("status"),
                 len(vision.get("medicines") or []),
             )
+        except RuntimeError as exc:
+            err_text = str(exc).strip().lower()
+            if "non-json response" in err_text:
+                logger.warning(
+                    "prescription.pipeline.vision.failed event_id=%s prescription_id=%s error=gemini_non_json_response",
+                    event.event_id,
+                    prescription_id,
+                )
+                await self.prescription_repo.update_status(
+                    prescription_id,
+                    "failed",
+                    {
+                        "vision": {
+                            "status": "failed",
+                            "error": "gemini_non_json_response",
+                            "medicines": [],
+                            "confidence": 0.0,
+                        }
+                    },
+                )
+                return
+            logger.exception("agent.failed")
+            await self.prescription_repo.update_status(
+                prescription_id,
+                "failed",
+                {
+                    "vision": {
+                        "status": "failed",
+                        "error": "vision_unavailable",
+                        "medicines": [],
+                        "confidence": 0.0,
+                    }
+                },
+            )
+            return
         except Exception:
             logger.exception("agent.failed")
             await self.prescription_repo.update_status(

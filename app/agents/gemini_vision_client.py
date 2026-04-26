@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from typing import Any
 
 import httpx
@@ -22,7 +23,7 @@ _VISION_SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"},
+                    "name": {"type": "string", "minLength": 3},
                     "name_legible": {"type": "boolean"},
                     "dosage_pattern": {"type": "string"},
                     "duration_days": {"type": "integer"},
@@ -62,12 +63,18 @@ class GeminiVisionClient:
             raise ValueError("image_url or image_base64 is required")
 
         system = (
-            "You are a strict prescription OCR extractor. Output only structured JSON that matches the provided schema."
+            "You are a strict prescription OCR extractor for medicine names and dosage.\n"
+            "Output ONLY one JSON object matching schema.\n"
+            "Goal: return usable medicine names for patients, not fragmented letters."
         )
         user = (
             "Extract medicines from the prescription image only.\n"
             "Never invent medicines.\n"
-            "Copy visible text as closely as possible.\n"
+            "Read doctor handwriting carefully and normalize medicine names into proper readable names.\n"
+            "Do NOT output single letters or broken letter chunks as medicine names.\n"
+            "If letters are split (example: 'D O L O'), merge into one name token.\n"
+            "If partly unclear, provide the most likely complete medicine name from visible characters/context,\n"
+            "set name_legible=false, and reduce confidence.\n"
             "If uncertain, lower confidence and set partial=true.\n"
             "Use status='failed' only when no medicine row is visible.\n"
             f"Language hint: {language}."
@@ -126,12 +133,38 @@ class GeminiVisionClient:
         except (TypeError, ValueError):
             confidence = 0.0
         confidence = max(0.0, min(1.0, confidence))
-        if not medicines and out_status == "ok":
+        cleaned_medicines: list[dict[str, Any]] = []
+        for row in medicines:
+            if not isinstance(row, dict):
+                continue
+            cleaned_name = GeminiVisionClient._clean_name(str(row.get("name", "")))
+            if not cleaned_name:
+                partial = True
+                continue
+            next_row = dict(row)
+            next_row["name"] = cleaned_name
+            cleaned_medicines.append(next_row)
+
+        if not cleaned_medicines and out_status == "ok":
             out_status = "failed"
             partial = True
         return {
             "status": out_status,
             "partial": partial,
             "confidence": confidence,
-            "medicines": medicines,
+            "medicines": cleaned_medicines,
         }
+
+    @staticmethod
+    def _clean_name(name: str) -> str:
+        """Normalize OCR medicine name and reject unusable letter noise."""
+        value = re.sub(r"\s+", " ", (name or "").strip())
+        if not value:
+            return ""
+        # Merge spaced single-letter sequences: "D O L O" -> "DOLO".
+        if re.fullmatch(r"(?:[A-Za-z]\s+){2,}[A-Za-z]", value):
+            value = value.replace(" ", "")
+        letters = re.sub(r"[^A-Za-z]", "", value)
+        if len(letters) < 3:
+            return ""
+        return value

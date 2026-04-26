@@ -15,11 +15,12 @@ Schema: {"status":"ok","items":[{"name":"string","advice":"string"}],"confidence
 Rules:
 - One item per medicine; match "name" to input names.
 - Audience is elderly patients. Keep words very simple and easy to read.
-- Each "advice" must be ONLY 2-3 short lines total (max ~260 characters).
-- Format each advice with clear labels:
-  Line 1 starts with: "Eat:"
-  Line 2 starts with: "Avoid:"
-  Optional line 3 starts with: "Note:"
+- Each "advice" must be ONLY 2-3 short bullet points total (max ~300 characters).
+- Start each line with "- " (dash + space).
+- Format bullets with clear labels:
+  Bullet 1 starts with: "- Eat:"
+  Bullet 2 starts with: "- Avoid:"
+  Optional bullet 3 starts with: "- Note:"
 - Include what to eat/okay and what to avoid/separate in time.
 - Mention alcohol/grapefruit only if relevant; otherwise keep it general and short.
 - Do NOT repeat reminder clock times or paraphrase "take at 08:00" — focus on food/drink interactions.
