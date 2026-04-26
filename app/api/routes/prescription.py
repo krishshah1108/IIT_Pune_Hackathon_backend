@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from app.api.dependencies import get_orchestrator, get_prescription_service, get_token_payload
 from app.core.config import get_settings
-from app.core.demo_prescriptions import demo_prescription_id_for_user
+from app.core.demo_prescriptions import demo_prescription_id_for_email
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.orchestrator.engine import OrchestratorEngine
 from app.orchestrator.events import Event
@@ -68,7 +68,8 @@ async def upload_prescription(
 ) -> PrescriptionUploadResponse:
     """Upload image, run vision + literacy + food in-process, return draft analysis (no medicines until confirm)."""
     user_id = str(claims["sub"])
-    logger.info("prescription.upload.received user_id=%s filename=%s", user_id, image.filename or "unknown")
+    email = str(claims.get("email") or "").strip().lower()
+    logger.info("prescription.upload.received user_id=%s email=%s filename=%s", user_id, email or "-", image.filename or "unknown")
     content_type = (image.content_type or "").split(";")[0].strip().lower()
     if content_type not in _ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -82,7 +83,7 @@ async def upload_prescription(
     logger.info("prescription.upload.file_read user_id=%s bytes=%s content_type=%s", user_id, len(raw), content_type)
 
     settings = get_settings()
-    demo_prx = demo_prescription_id_for_user(user_id) if settings.demo_mode else None
+    demo_prx = demo_prescription_id_for_email(email) if settings.demo_mode and email else None
 
     if demo_prx:
         try:
@@ -93,6 +94,7 @@ async def upload_prescription(
                 content_type=content_type,
                 original_filename=image.filename,
                 language=language,
+                demo_fixture_email=email,
             )
         except NotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
