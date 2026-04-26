@@ -635,9 +635,9 @@ Common error values: `gemini_not_configured`, `gemini_failed`, `no_medicines`.
 { "detail": "User not found" }
 ```
 
-`409` duplicate upload
+`409` duplicate upload (already confirmed)
 ```json
-{ "detail": "Duplicate prescription upload detected" }
+{ "detail": "Duplicate confirmed prescription upload detected" }
 ```
 
 `422` validation

@@ -181,18 +181,26 @@ class OrchestratorEngine:
     async def handle_dose_missed(self, event: Event) -> None:
         """Run check-in and triage pipeline for missed dose."""
         logger.info(
-            "event.handle_dose_missed.started event_id=%s user_id=%s dose_log_id=%s consecutive_misses=%s",
+            "event.handle_dose_missed.started event_id=%s user_id=%s dose_log_id=%s status=%s consecutive_misses=%s",
             event.event_id,
             event.payload.get("user_id"),
             event.payload.get("dose_log_id"),
+            event.payload.get("status"),
             event.payload.get("consecutive_misses"),
         )
         checkin = await self.checkin_agent.run(event.payload)
         logger.info("event.handle_dose_missed.checkin_result event_id=%s risk_level=%s", event.event_id, checkin.get("risk_level"))
-        triage = await self.triage_agent.run({"risk_level": checkin.get("risk_level", "low")})
+        triage = await self.triage_agent.run(
+            {
+                "risk_level": checkin.get("risk_level", "low"),
+                "status": event.payload.get("status"),
+                "consecutive_misses": int(event.payload.get("consecutive_misses", 0)),
+            }
+        )
         logger.info(
-            "event.handle_dose_missed.triage_result event_id=%s escalate=%s severity=%s",
+            "event.handle_dose_missed.triage_result event_id=%s status=%s escalate=%s severity=%s",
             event.event_id,
+            event.payload.get("status"),
             triage.get("escalate"),
             triage.get("severity"),
         )

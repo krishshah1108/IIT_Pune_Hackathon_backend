@@ -32,6 +32,7 @@ async def run_missed_dose_worker(service: AdherenceService, orchestrator: Orches
                     payload={
                         "user_id": row["user_id"],
                         "dose_log_id": row["_id"],
+                        "status": row.get("status", "missed"),
                         "consecutive_misses": int(row.get("consecutive_misses", 1)),
                     },
                 )

@@ -53,7 +53,7 @@ class PrescriptionService:
         image_hash = hash_bytes(file_bytes)
         duplicate = await self.prescription_repo.find_duplicate(user["_id"], image_hash)
         if duplicate:
-            raise ConflictError("Duplicate prescription upload detected")
+            raise ConflictError("Duplicate confirmed prescription upload detected")
 
         safe_name = (original_filename or "prescription").replace("\\", "/").split("/")[-1][:120]
         upload_meta = await self.cloudinary.upload_prescription_image(file_bytes, safe_name)

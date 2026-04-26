@@ -78,6 +78,7 @@ async def update_dose_log(
             payload={
                 "user_id": context["user_id"],
                 "dose_log_id": context["dose_log_id"],
+                "status": payload.status,
                 "consecutive_misses": int(context.get("consecutive_misses", 1)),
             },
         )

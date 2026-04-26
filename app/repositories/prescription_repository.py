@@ -41,8 +41,15 @@ class PrescriptionRepository(BaseRepository):
         return doc
 
     async def find_duplicate(self, user_id: str, image_hash: str) -> dict | None:
-        """Find duplicate upload by user and content hash."""
-        return await self.collection.find_one({"user_id": user_id, "content_hash": image_hash, "deleted_at": None})
+        """Find duplicate upload only when an identical prescription is already confirmed."""
+        return await self.collection.find_one(
+            {
+                "user_id": user_id,
+                "content_hash": image_hash,
+                "status": "confirmed",
+                "deleted_at": None,
+            }
+        )
 
     async def update_status(self, prescription_id: str, status: str, ai_output: dict[str, Any] | None = None) -> None:
         """Update processing status and optional AI payload."""
